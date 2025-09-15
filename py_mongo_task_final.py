@@ -1,282 +1,297 @@
-from pymongo import MongoClient, ASCENDING, DESCENDING
-from pymongo.errors import DuplicateKeyError
-from bson import ObjectId
 from datetime import datetime
 import re
+import os
+from dotenv import load_dotenv
 from pprint import pprint
 
-import warnings
-warnings.filterwarnings("ignore")
+load_dotenv()
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+DB_NAME = os.getenv('DB_NAME', 'training_db')
+COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'employees')
 
-#Task-1 : Connection and prep of data
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+collection = db[COLLECTION_NAME]
 
-#conditions to check if the email is in correct format
-email = re.compile(r"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", re.I)
-#condition to verify if the user is inserting the dept from the below mentioned departents
-depts = {"Engineering", "AI/ML", "Finance", "HR", "Sales"}
 
-#connection to mongodb
-client = MongoClient("mongodb://localhost:27017/")
-db = client["training_db"]
-employees = db["employees"]
-
-employees.drop()
-
-# inserting documents in the form of dictionary
-docs = [
-        {
-            "name": "Gautami Kadam",
-            "email": "gautami.kadam@gamil.com",
-            "department": "Engineering",
-            "salary": 85000.0,
-            "join_date": datetime(2023, 8, 1),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        {
-            "name": "Raksha Pathak",
-            "email": "raksha.pathak@gmail.com",
-            "department": "AI/ML",
-            "salary": 120000.0,
-            "join_date": datetime(2024, 1, 15),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        {
-            "name": "Mohit Jain",
-            "email": "mohit.jain@gmail.com",
-            "department": "Finance",
-            "salary": 70000.0,
-            "join_date": datetime(2022, 11, 10),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        {
-            "name": "Neha Sharma",
-            "email": "neha.sharma@gmail.com",
-            "department": "HR",
-            "salary": 60000.0,
-            "join_date": datetime(2021, 6, 25),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        {
-            "name": "Sanjay Gupta",
-            "email": "sanjay.gupta@gmail.com",
-            "department": "Sales",
-            "salary": 90000.0,
-            "join_date": datetime(2023, 3, 9),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-    ]
-employees.insert_many(docs)
-
-#Task-2 : Search
-
-# Task -2 1.->List All Records
-for doc in employees.find({}):
-    pprint(doc)
-
-# Task 2- 2.->search the documents by department
-for doc in employees.find({"department": "Engineering"}):
-    pprint(doc)
-
-#Task-2 3.-> search by salary range
-for doc in employees.find({"salary": {"$gte": 65000, "$lte": 100000}}):
-    pprint(doc)
-
-#Task-2 4.->Search by Name Pattern
-for doc in employees.find({"name": {"$regex": "sha", "$options": "i"}}):
-    pprint(doc)
-
-#Task-2 5.->Advanced Search with multiple criteria
-query = {"department": "Finance", "salary": {"$gte": 60000, "$lte": 80000}}
-for doc in employees.find(query):
-    pprint(doc)
-
-#Task-2 6.->sorted result
-for doc in employees.find({}).sort("salary", ASCENDING).limit(3):
-    pprint(doc)
-
-#Task-2 7.->pagination (limit and skip)
-page, page_size = 1, 2
-skip = (page - 1) * page_size
-for doc in employees.find({}).sort("salary", DESCENDING).skip(skip).limit(page_size):
-    pprint(doc)
-
-#Task-3 : Insert
-
-#Task-3 1.-> single Insert
-d1 = {
-    "name": "Sayali Bhoir",
-    "email": "sayali.bhoir@company.com",
-    "department": "AI/ML",
-    "salary": 110000,
-    "join_date": "2024-07-01",
-}
-
-#Task-3 1.-> single Insert
-name = (d1.get("name") or "").strip()
-new_email = (d1.get("email") or "").strip().lower()
-department = (d1.get("department") or "").strip()
-salary = float(d1.get("salary"))
-join_date = d1.get("join_date")
-
-if not name:
-    raise ValueError("name is required")
-if not email.match(new_email):
-    raise ValueError("invalid email format")
-if department not in depts:
-    raise ValueError(f"department must be one of {sorted(depts)}")
-if salary <= 0:
-    raise ValueError("salary must be > 0")
-if isinstance(join_date, str):
-    join_date = datetime.strptime(join_date, "%Y-%m-%d")
-if not isinstance(join_date, datetime):
-    raise ValueError("join_date must be datetime or 'YYYY-MM-DD'")
-
-payload = {
-    "name": name,
-    "email": email,
-    "department": department,
-    "salary": salary,
-    "join_date": join_date,
-    "created_at": datetime.utcnow(),
-    "updated_at": datetime.utcnow(),
-}
-try:
-    res = employees.insert_one(payload)
-    print("Inserted _id:", res.inserted_id)
-except DuplicateKeyError:
-    print("Duplicate")
-except Exception as e:
-    print("Insert error:", e)
-
-#Task-3 2.-> multiple docs Insert
-bulk_docs = [
-    {
-        "name": "abc",
-        "email": "gautami.kadam@company.com",
-        "department": "Sales",
-        "salary": 50000,
-        "join_date": "2024-07-02",
-    },
-    {
-        "name": "xyz",
-        "email": "xyz@company.com",
-        "department": "Ops",
-        "salary": 45000,
-        "join_date": "2024-07-02",
-    },
-    {
-        "name": "ghi",
-        "email": "ghi@company.com",
-        "department": "Engineering",
-        "salary": 95000,
-        "join_date": "2022-04-05",
-    },
-    {
-        "name": "jkl",
-        "email": "jkl@company.com",
-        "department": "HR",
-        "salary": 62000,
-        "join_date": datetime(2021, 12, 30),
-    },
-]
-
-#Task-3 2.-> multiple doc Insert
-cleaned_docs = []
-seen_emails = set()
-for d in bulk_docs:
+# Code for single insertion
+def single_insert():
     try:
-        nm = (d.get("name") or "").strip()
-        em = (d.get("email") or "").strip().lower()
-        dept = (d.get("department") or "").strip()
-        sal = float(d.get("salary"))
-        jd = d.get("join_date")
+        collection.create_index([(" email", 1)], unique=True)
+    except Exception as e:
+        print("couldn't create index")
+    try:
+        emp_id = int(input("emp_id: "))
+        name = input("name: ")
+        email = input("email: ")
+        department = input("department: ")
+        salary = float(input("salary: "))
+        join_date = datetime.datetime.strptime(input("join_date (YYYY-MM-DD): "), "%Y-%m-%d")
 
-        if not nm:
-            raise ValueError("name is required")
-        if not email.match(em):
-            raise ValueError("invalid email format")
-        if dept not in depts:
-            raise ValueError("department must be one of {sorted(depts)}")
-        if sal <= 0:
-            raise ValueError("salary must be > 0")
-        if isinstance(jd, str):
-            jd = datetime.strptime(jd, "%Y-%m-%d")
-        if not isinstance(jd, datetime):
-            raise ValueError("join_date must be datetime or 'YYYY-MM-DD'")
+        if collection.count_documents({"email": email}, limit=1):
+            print("duplicate email")
+        else:
+            collection.insert_one({
+                "emp_id": emp_id,
+                "name": name,
+                "email": email,
+                "department": department,
+                "salary": salary,
+                "join_date": join_date,
+                "created_at": datetime.datetime.utcnow(),
+                "updated_at": datetime.datetime.utcnow()
+            })
+            print("Inserted")
+    except Exception as e:
+        print("Error inserting document:", e)
 
-        if em in seen_emails:
-            print("Duplicate")
+# multiple insertion
+def multiple_insert():
+    n = int(input("how many employees to insert: "))
+    docs = []
+    seen = set()
+    for i in range(n):
+        emp_id = int(input("emp_id: "))
+        name = input("name: ")
+        email = input("email: ")
+        department = input("department: ")
+        salary = float(input("salary: "))
+        join_date = datetime.datetime.strptime(input("join_date (YYYY-MM-DD): "), "%Y-%m-%d")
+
+        if email in seen:
+            print("duplicate email")
             continue
 
-        cleaned_docs.append({
-            "name": nm,
-            "email": em,
-            "department": dept,
-            "salary": sal,
-            "join_date": jd,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+        docs.append({
+            "emp_id": emp_id,
+            "name": name,
+            "email": email,
+            "department": department,
+            "salary": salary,
+            "join_date": join_date,
+            "created_at": datetime.datetime.utcnow(),
+            "updated_at": datetime.datetime.utcnow()
         })
-        seen_emails.add(em)
-    except Exception as e:
-        print("Skipping", e)
+        seen.add(email)
 
-#Task-3 2.-> multiple doc Insert
-if cleaned_docs:
+    if docs:
+        collection.insert_many(docs)
+        print("Inserted")
+    else:
+        print("no documents to insert")
+
+# code for reading/printing the documents
+def read_doc():
     try:
-        employees.insert_many(cleaned_docs, ordered=False)
-    except DuplicateKeyError:
-        print("duplicates exist.")
-else:
-    print("No docs to insert.")
+        for doc in collection.find():
+            print(doc)
+    except Exception as e1:
+        print("Error printing document:", e1)
 
-for doc in employees.find({}).sort("name", ASCENDING):
-    pprint(doc)
+# code for searching documents by departments
+def search_by_dept():
+    try:
+        dept = input("enter the department: ")
+        for doc in collection.find({"department": dept}):
+            print(doc)
+    except Exception as e:
+        print("Error fetching the document:", e)
 
-#Task-4 : Update
+# code for searching documents by salary range
+def search_by_salary_range():
+    try:
+        lower = float(input("enter the lower salary range: "))
+        upper = float(input("enter the upper salary range: "))
+        for doc in collection.find({"salary": {"$gte": lower, "$lte": upper}}):
+            print(doc)
+    except Exception as e:
+        print("Error fetching the document:", e)
 
-# Task-4 1.-> Update Single Field
-res = employees.update_one(
-    {"_id": ObjectId('68c7c8762bff4fd3161358c9')},
-    {"$set": {"department": "HR", "updated_at": datetime.utcnow()}}
-    )
-print("done")
-pprint(employees.find_one({"_id": ObjectId('68c7c8762bff4fd3161358c9')}))
+# code for searching documents by name pattern
+def search_by_name_pattern():
+    try:
+        pat = input("enter the name to search: ")
+        for doc in collection.find({"name": {"$regex": pat}}):
+            print(doc)
+    except Exception as e:
+        print("Error fetching the document:", e)
 
-# Task-4 2.-> Update Multiple Fields
-updates = {"salary": 88000, "name": "Rahul K. Verma", "updated_at": datetime.utcnow()}
-res = employees.update_one(
-    {"_id": ObjectId('68c7c8762bff4fd3161358c7')},
-    {"$set": updates})
-print("done")
-pprint(employees.find_one({"_id": ObjectId('68c7c8762bff4fd3161358c7')}))
+# code for searching documents by department, salary
+def advanced_search():
+    try:
+        salary = float(input("enter the salary to search: "))
+        dept = input("enter the dept to search: ")
+        for doc in collection.find({
+            "$and": [{"salary": {"$eq": salary}}, 
+                     {"department": {"$eq": dept}}]}):
+            print(doc)
+    except Exception as e:
+        print("Error fetching the document:", e)
 
-# Task-4 3.-> Update by ID
-res = employees.update_one(
-    {"_id": ObjectId('68c7c8762bff4fd3161358c5')},
-    {"$set": {"salary": 90000, "updated_at": datetime.utcnow()}}
-    )
-print("done")
-pprint(employees.find_one({"_id": ObjectId('68c7c8762bff4fd3161358c5')}))
+# pagination and sorting code
+def read_by_page():
+    try:
+        page = int(input("page number: "))
+        size = int(input("page size: "))
+        field = input("sort field: ")
+        order = int(input("for asc put 1 and for desc put -1: "))
 
-#Task-4 4.-> update by criteria
-res = employees.update_many(
-    {"department": "HR"},
-    {"$set": {"salary": 65000, "updated_at": datetime.utcnow()}})
-print("done")
-for doc in employees.find({"department": "HR"}):
-    pprint(doc)
+        skip = (page - 1) * size
 
-#Task-4 5.-> conditional update
-res = employees.update_many(
-    {"salary": {"$lt": 70000}},
-    {"$set": {"needs_raise": True, "updated_at": datetime.utcnow()}})
-print("done")
-for doc in employees.find({"salary": {"$lt": 70000}}):
-    pprint(doc)
+        cur = (collection.find()
+                  .sort(field, order)
+                  .skip(skip)
+                  .limit(size))
 
+        for doc in cur:
+            print(doc)
+    except Exception as e:
+        print("Error fetching the document:", e)
+
+# code for updating the field
+def update_single_field():
+    try:
+        emp_id = int(input("enter the id to be updated: "))
+        update_field = input("enter the field name to be updated: ")
+        to_be_updated = input("enter the new update: ")
+
+        result = collection.update_one(
+            {"emp_id": emp_id}, 
+            {"$set": {update_field: to_be_updated, "updated_at": datetime.datetime.utcnow()}}
+            )
+        
+        print("matched and updated")
+    except Exception as e:
+        print("Error updating document:", e)
+
+# code for updating multiple fields
+def update_multiple_field():
+    try:
+        emp_id = int(input("enter the id to be updated: "))
+        n = int(input("enter the number of updates to be done: "))
+        updates = {}
+        for i in range(n):
+            update_field = input("enter the field to be updated: ")
+            to_be_updated = input("enter the value to be updated: ")
+            updates[update_field] = to_be_updated
+        updates["updated_at"] = datetime.datetime.utcnow()
+        result = collection.update_many(
+            {"emp_id": emp_id}, 
+            {"$set": updates}
+            )
+        
+        print("matched and updated")
+
+    except Exception as e:
+        print("Error updating document:", e)
+
+
+# code for updating document using id
+def update_by_id():
+    try:
+        emp_id = int(input("enter the id to be updated: "))
+        update_field = input("enter the field name to be updated: ")
+        to_be_updated = input("enter the new update: ")
+
+        result = collection.update_one(
+            {"emp_id": emp_id}, 
+            {"$set": {update_field: to_be_updated, "updated_at": datetime.datetime.utcnow()}}
+            )
+        
+        print("matched and updated")
+    except Exception as e:
+        print("Error updating document:", e)
+
+# code for updating document by criteria
+def update_by_criteria():
+    try:
+        field = input("enter the field name to be updated: ")
+        value = input("enter the new value: ")
+        criteria_field = input("enter the criteria field: ")
+        criteria_value = input("enter the criteria value: ")
+
+        result = collection.update_many(
+            {criteria_field: criteria_value}, 
+            {"$set": {field: value, "updated_at": datetime.datetime.utcnow()}})
+        
+        print("matched and modified")
+    except Exception as e:
+        print("Error updating document:", e)
+
+# code for updating document based on condition
+def conditional_update():
+    res = collection.update_many(
+    {"salary": {"$lt": 70000}}, 
+    {"$set": {"needs_raise": True, "updated_at": datetime.datetime.utcnow()}})
+    print("done")
+    for doc in collection.find({"salary": {"$lt": 70000}}):
+        pprint(doc)
+
+# menu to select from
+if __name__ == "__main__":
+    while True:
+        print("\nMenu:")
+        print("1. Insert Employees")
+        print("2. List All Employees")
+        print("3. Paginate Employees")
+        print("4. Search Employees")
+        print("5. Update Employees")
+        print("6. Exit")
+        choice = int(input("Enter your choice: "))
+        if choice == 1:
+            print("1. Insert Single Employees")
+            print("2. Insert Multiple Employees")
+            print("3. Exit")
+            ch1 = int(input("Enter your choice: "))
+            if ch1==1:
+                single_insert()
+            elif ch1==2:
+                multiple_insert()
+            elif ch1==3:
+                break
+        elif choice == 2:
+            read_doc()
+        elif choice == 3:
+            read_by_page()
+        elif choice == 4:
+            print("1. Search by dept")
+            print("2. Search by salary range")
+            print("3. Search by name pattern")
+            print("4. Advanced Search")
+            print("5. Exit")
+            ch2 = int(input("Enter your choice: "))
+            if ch2==1:
+                search_by_dept()
+            elif ch2==2:
+                search_by_salary_range()
+            elif ch2==3:
+                search_by_name_pattern()
+            elif ch2==4:
+                advanced_search()
+            elif ch2==5:
+                break
+        elif choice == 5:
+            print("1. Update single field")
+            print("2. update multiple fields")
+            print("3. Update by id")
+            print("4. Update by criteria")
+            print("5. Update based on condition")
+            print("6. Exit")
+            ch2 = int(input("Enter your choice: "))
+            if ch2==1:
+                update_single_field()
+            elif ch2==2:
+                update_multiple_field()
+            elif ch2==3:
+                update_by_id()
+            elif ch2==4:
+                update_by_criteria()
+            elif ch2==5:
+                conditional_update()
+            elif ch2==6:
+                break
+        elif choice == 6:
+            print("Exiting...")
+            break
+        else:
+            print("Invalid choice")
